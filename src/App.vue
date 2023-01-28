@@ -217,7 +217,7 @@ console.log('0')
 function generateQr(data: string, type: 'svg' | 'image' = 'svg') {
   const qr = qrcode(0, 'H');
 
-  qr.addData(data, 'Alphanumeric');
+  qr.addData(data);
   qr.make();
 
   if (type === 'svg') {
