@@ -1,40 +1,32 @@
-# upn-qr
+# UPN QR Generator
 
-This template should help get you started developing with Vue 3 in Vite.
+Generator za slovenske UPN (položnica) QR kode. Ima vaše društvo probleme s pobiranjem donacij, ker ljudje danes s seboj le zgolj poredko nosijo gotovino? Zdaj jih lahko fehtate tudi s QR kodami, brez da bi rabili iz interneta prenašati praviloma plačljive računovodske programe. Ne resno — če bi dobil na internetu izi generator QR kod za slovenske položnice, potem ne bi zdaj brali tega jamranja.
 
-## Recommended IDE Setup
+Stvar je na voljo [tukaj](http://tamius.net/upnqr/). 
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+## Kako uporabljati
 
-## Type Support for `.vue` Imports in TS
+1. Izpolni podatke
+2. Klikni 'ustvari QR kode'
+3. Klikni 'shrani SVG'
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin) to make the TypeScript language service aware of `.vue` types.
+Stran ustvari dve kodi: eno za evropske banke (Revolut, N26), ter eno za Slovenske banke. Ja, imamo mi en 'posebna snežinka' sistem za QR kode. Ne, mobilne aplikacije slovenskih bank bolj ali manj ne znajo brati onega vsesplošnega standarda, ki ga uporabljajo bolj ali manj vse Evropske banke.
 
-If the standalone TypeScript plugin doesn't feel fast enough to you, Volar has also implemented a [Take Over Mode](https://github.com/johnsoncodehk/volar/discussions/471#discussioncomment-1361669) that is more performant. You can enable it by the following steps:
+Tiste QR kode, ki jih rabiš, nato shraniš na računalnik in sprintaš na en (ali več) list(ov) papirja.
 
-1. Disable the built-in TypeScript Extension
-    1) Run `Extensions: Show Built-in Extensions` from VSCode's command palette
-    2) Find `TypeScript and JavaScript Language Features`, right click and select `Disable (Workspace)`
-2. Reload the VSCode window by running `Developer: Reload Window` from the command palette.
+## Stvari, ki ne delajo
 
-## Customize configuration
+* Zgleda, da knjižnica za QR kode ne mara šumnikov. 
+* Poleg 'posebna snežinka' formata QR kod imamo tudi 'posebna snežinka' format za reference. Slovenskih referenc ne validiram, ampak to verjetno ni kak problem. Ljudje, ki jim RF00 (prost vnos) in RF99 (prazna referenca) nista dovolj, verjetno uporabljajo proper računovodske programe. To ne bo nikoli delalo, ker se mi validacije referenc ne ljubi implementirat. 
+* Ene par manjših hroščkov in nezglajenih kotov, ki niso dovolj nadležni da bi upravičevali čas, ki bi bil potreben, da se spucajo.
 
-See [Vite Configuration Reference](https://vitejs.dev/config/).
+## HTTP? V letu 2023?
 
-## Project Setup
+Ker se mi ne da s Cloudflare ukvarjat, pa ker se mi ne da z domenco ukvarjat.
 
-```sh
-npm install
-```
+## A mi fora README da poveš, kako to lokalno postaviti?
 
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
-```
-
-### Type-Check, Compile and Minify for Production
-
-```sh
-npm run build
-```
+1. node 16
+2. `npm i`
+3. `npm run dev` (ampak HMR ne dela, rabiš pognat po vsaki spremembi na roke)
+4. `npm run build` in prekopiraš iz `/dist` na "produkcijo"
