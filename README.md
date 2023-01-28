@@ -24,7 +24,7 @@ Tiste QR kode, ki jih rabiš, nato shraniš na računalnik in sprintaš na en (a
 
 Ker se mi ne da s Cloudflare ukvarjat, pa ker se mi ne da z domenco ukvarjat.
 
-## A mi fora README da poveš, kako to lokalno postaviti?
+## A ni fora README da poveš, kako to lokalno postaviti?
 
 1. node 16
 2. `npm i`
