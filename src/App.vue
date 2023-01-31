@@ -1,21 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import * as ibantools from 'ibantools';
-import unidecode from 'unidecode';
-import qrcode from 'qrcode-generator';
-import ISO11649 from 'iso-11649';
+import { nextTick, ref } from "vue";
+import * as ibantools from "ibantools";
+import unidecode from "unidecode";
+import qrcode from "qrcode-generator";
+// import QRCode from 'qrcode-svg';
+import ISO11649 from "iso-11649";
 
-const LOCALSTORAGE_RECIPIENTS_KEY = 'recipients';
+const LOCALSTORAGE_RECIPIENTS_KEY = "recipients";
 
 const upnData = ref({
-  amount: '',
-  code: '',
-  purpose: '',
-  recipientIBAN: '',
-  reference: '',
-  recipientName: '',
-  recipientAddress: '',
-  recipientCity: ''
+  amount: "",
+  code: "",
+  purpose: "",
+  recipientIBAN: "",
+  reference: "",
+  recipientName: "",
+  recipientAddress: "",
+  recipientCity: "",
 });
 
 const upnErrors = ref({
@@ -26,20 +27,21 @@ const upnErrors = ref({
   reference: false,
   recipientName: false,
   recipientAddress: false,
-  recipientCity: false
+  recipientCity: false,
 });
 
-const upnQrHtml = ref('Izpolni podatke in klikni gumb \'Ustvari QR kode\'');
-const bcdQrHtml = ref('Izpolni podatke in klikni gumb \'Ustvari QR kode\'');
-const recipientSaveName = ref('');
+const upnQrHtml = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
+const bcdQrHtml = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
+const savingRecipient = ref(false);
+const noBorder = ref(false);
+const recipientSaveName = ref("");
 const savedRecipients = ref([] as any[]);
 
-const eu = ref(null);
-const slo = ref(null);
+const saveRecipientInput = ref(null);
+const autofocus = ref(null);
 
 // load saved recipients from local storage
 const storedRecipientJSONString = localStorage.getItem(LOCALSTORAGE_RECIPIENTS_KEY);
-console.log('stored:', storedRecipientJSONString);
 if (storedRecipientJSONString) {
   savedRecipients.value = JSON.parse(storedRecipientJSONString);
 }
@@ -53,7 +55,7 @@ function clearErrors() {
     reference: false,
     recipientName: false,
     recipientAddress: false,
-    recipientCity: false
+    recipientCity: false,
   };
 }
 
@@ -66,28 +68,27 @@ function clearErrors() {
  * https://www.uradni-list.si/files/RS_-2019-034-01510-OB~P001-0000.PDF
  */
 function ghettoValidateSIReference(reference: string) {
-  reference = reference.trim().replace(' ', '');
+  reference = reference.trim().replace(" ", "");
 
-  if (reference === 'SI99') {
+  if (reference === "SI99") {
     return true;
   }
 
-  if (reference.startsWith('SI99')) {
+  if (reference.startsWith("SI99")) {
     return false;
   }
 
-  if (! /$[0-9\-]*^/.test(reference)) {
+  if (!/$[0-9\-]*^/.test(reference)) {
     return false;
   }
 
   const referenceLength = reference.length;
-  const segments = reference.split('-').length;
-
+  const segments = reference.split("-").length;
 
   // reference can have at most 3 segments (at most two dashes)
   // and 20 digits. Because SI?? is present in reference lenght,
   // "20 digits" means referenceLength (sans dashes) 24 char max.
-  return (segments <= 3 && referenceLength - segments <= 24);
+  return segments <= 3 && referenceLength - segments <= 24;
 }
 
 /**
@@ -100,51 +101,65 @@ function processUpnQrData() {
   const iban = ibantools.electronicFormatIBAN(upnData.value.recipientIBAN);
 
   console.info(
-    'Checking validity of IBAN', upnData.value.recipientIBAN,
-    '\nIBAN parsed by ibantools:', iban,
-    '\nIBAN validity:', ibantools.isValidIBAN(iban ?? ''),
+    "Checking validity of IBAN",
+    upnData.value.recipientIBAN,
+    "\nIBAN parsed by ibantools:",
+    iban,
+    "\nIBAN validity:",
+    ibantools.isValidIBAN(iban ?? "")
   );
 
-  upnErrors.value.recipientIBAN = !iban || !upnData.value.recipientIBAN.trim() || !ibantools.isValidIBAN(iban);
+  upnErrors.value.recipientIBAN =
+    !iban || !upnData.value.recipientIBAN.trim() || !ibantools.isValidIBAN(iban);
 
-  const [eur, cents] = upnData.value.amount.replace('.', ',').split(',');
-  if (eur.length > 9 || cents?.length > 2) {
+  // don't crash on empty 'amount' field, instead fail somewhat gracefully:
+  let [eur, cents] = ["0", "0"];
+  if (upnData.value.amount) {
+    [eur, cents] = upnData.value.amount.replace(".", ",").split(",");
+    if (eur.length > 9 || cents?.length > 2) {
+      upnErrors.value.amount = true;
+    }
+  } else {
     upnErrors.value.amount = true;
   }
 
   const eurPad = new Array(9 - eur.length).fill(0);
-  const eurPadded = `${eurPad.join('')}${eur}`;
-  const centsFilled = !cents ? '00' : (cents.length === 1 ? `${cents}0` : cents);
+  const eurPadded = `${eurPad.join("")}${eur}`;
+  const centsFilled = !cents ? "00" : cents.length === 1 ? `${cents}0` : cents;
   const amount = `${eurPadded}${centsFilled}`;
   const amountBcd = `${eur}.${centsFilled}`;
 
-  let purposeCode = upnData.value.code.trim() || 'OTHR';
-  let reference = upnData.value.reference.trim().replace(' ', '') || 'SI99';
+  let purposeCode = upnData.value.code.trim() || "OTHR";
+  let reference = upnData.value.reference.trim().replace(" ", "") || "SI99";
 
-  if (reference.startsWith('RF')) {
+  if (reference.startsWith("RF")) {
     upnErrors.value.reference = ISO11649.validate(reference);
-  } else if (reference.startsWith('SI')) {
-    upnErrors.value.reference = ! ghettoValidateSIReference(reference);
+  } else if (reference.startsWith("SI")) {
+    upnErrors.value.reference = !ghettoValidateSIReference(reference);
   }
 
   if (!upnData.value.purpose.trim()) {
     upnErrors.value.purpose = true;
   }
 
-
-  if (upnErrors.value.recipientIBAN || upnErrors.value.amount || upnErrors.value.reference || upnErrors.value.purpose) {
-    throw 'Invalid data';
+  if (
+    upnErrors.value.recipientIBAN ||
+    upnErrors.value.amount ||
+    upnErrors.value.reference ||
+    upnErrors.value.purpose
+  ) {
+    throw "Invalid data";
   }
 
-  const processedData =  {
+  const processedData = {
     iban,
     amount,
     amountBcd,
     reference,
-    purposeCode
+    purposeCode,
   };
 
-  console.info('QR data processed. Returning:', processedData);
+  console.info("QR data processed. Returning:", processedData);
 
   return processedData;
 }
@@ -154,7 +169,7 @@ function processUpnQrData() {
  */
 function generateUpnQrText() {
   upnErrors.value = clearErrors();
-  const {iban, amount, reference, purposeCode} = processUpnQrData();
+  const { iban, amount, reference, purposeCode } = processUpnQrData();
 
   // spec for UPN and UPN QR:
   // https://www.upn-qr.si/uploads/files/Tehnicni%20standard%20UPN%20QR.pdf
@@ -170,13 +185,13 @@ ${amount}
 
 
 ${purposeCode}
-${upnData.value.purpose}
+${unidecode(upnData.value.purpose)}
 
 ${iban}
 ${reference}
-${upnData.value.recipientName}
-${upnData.value.recipientAddress}
-${upnData.value.recipientCity}`;
+${unidecode(upnData.value.recipientName)}
+${unidecode(upnData.value.recipientAddress)}
+${unidecode(upnData.value.recipientCity)}`;
 
   return `${template}\n${template.length}`;
 }
@@ -186,15 +201,10 @@ ${upnData.value.recipientCity}`;
  */
 function generateBcdQrText() {
   upnErrors.value = clearErrors();
-  const {iban, amountBcd} = processUpnQrData();
-
-  console.log('0')
-
+  const { iban, amountBcd } = processUpnQrData();
 
   const name = unidecode(upnData.value.recipientName);
   const purpose = unidecode(upnData.value.purpose);
-
-  console.log('0')
 
   const template = `BCD
 001
@@ -209,19 +219,26 @@ ${purpose}
 ${purpose}
 `;
 
-console.log('0')
-
   return template;
 }
 
-function generateQr(data: string, type: 'svg' | 'image' = 'svg') {
+function generateQr(data: string, type: "svg" | "image" = "svg") {
+  console.log("Generating qr code from:", data);
   const qr = qrcode(0, 'H');
+  // const qr = new QRCode({
+  //   content: data,
+  //   ecl: "H",
+  //   padding: noBorder.value ? 0 : 2,
+  //   join: true,
+  //   container: "svg-viewbox",
+  // });
+  // return qr.svg();
 
-  qr.addData(data);
+  qr.addData(data.normalize('NFD'));
   qr.make();
 
   if (type === 'svg') {
-    return qr.createSvgTag({scalable: true});
+    return qr.createSvgTag({scalable: true, margin: (noBorder.value ? 0 : undefined)});
   } else {
     return qr.createImgTag();
   }
@@ -231,8 +248,8 @@ function generateQr(data: string, type: 'svg' | 'image' = 'svg') {
  * Clears currently generated QR code
  */
 function resetQr() {
-  bcdQrHtml.value = 'Klikni gumb \'Ustvari QR kode\'';
-  upnQrHtml.value = 'Klikni gumb \'Ustvari QR kode\'';
+  bcdQrHtml.value = "Klikni gumb 'Ustvari QR kode'";
+  upnQrHtml.value = "Klikni gumb 'Ustvari QR kode'";
 }
 
 /**
@@ -248,7 +265,7 @@ function createQr() {
     // (eu as any).value.innerHtml = generateQr(bcdQrText);
     // (slo as any).value.innerHtml = generateQr(upnQrText);
   } catch (e) {
-    console.warn('we had a fucky wucky');
+    console.warn("we had a fucky wucky");
     console.error(e);
   }
 }
@@ -256,13 +273,19 @@ function createQr() {
 /**
  * Saves QR code SVG
  */
-function saveSvg(svg: string, filename: string = 'qr.svg') {
-  const link = document.createElement('a');
-  const file = new Blob([svg], {type: 'image/svg+xml'});
+function saveSvg(svg: string, filename: string = "qr.svg") {
+  const link = document.createElement("a");
+  const file = new Blob([svg], { type: "image/svg+xml" });
   link.href = URL.createObjectURL(file);
   link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+function startSaveRecipient() {
+  savingRecipient.value = true;
+
+  nextTick(() => (saveRecipientInput?.value as any)?.focus());
 }
 
 /**
@@ -272,13 +295,25 @@ function saveRecipient() {
   savedRecipients.value.push({
     ...upnData.value,
     amount: undefined,
-    savedName: `${recipientSaveName.value}`
+    savedName: `${recipientSaveName.value}`,
   });
 
-  console.log('save:',  JSON.stringify(savedRecipients.value));
+  console.log("save:", JSON.stringify(savedRecipients.value));
 
-  localStorage.setItem(LOCALSTORAGE_RECIPIENTS_KEY, JSON.stringify(savedRecipients.value));
-  recipientSaveName.value = '';
+  localStorage.setItem(
+    LOCALSTORAGE_RECIPIENTS_KEY,
+    JSON.stringify(savedRecipients.value)
+  );
+
+  cancelSaveRecipient();
+}
+
+/**
+ * Cancels saving a recipient to local storage
+ */
+function cancelSaveRecipient() {
+  savingRecipient.value = false;
+  recipientSaveName.value = "";
 }
 
 /**
@@ -286,168 +321,300 @@ function saveRecipient() {
  * @param recipient
  */
 function loadRecipient(recipient: any) {
-  upnData.value = {...recipient, savedName: undefined};
+  upnData.value = { ...recipient, savedName: undefined };
+  autofocusInput();
+}
+
+/**
+ * Removes recipient from the list of saved recipients
+ * @param recipientIndex
+ */
+function removeRecipient(recipientIndex: number) {
+  savedRecipients.value.splice(recipientIndex, 1);
+  localStorage.setItem(
+    LOCALSTORAGE_RECIPIENTS_KEY,
+    JSON.stringify(savedRecipients.value)
+  );
+}
+
+function autofocusInput() {
+  (autofocus.value as any)?.focus();
+}
+
+function onMounted() {
+  nextTick(() => autofocusInput());
 }
 </script>
 
 <template>
-  <main>
-    <div>
-      <h1>
-        <sub><small>Železna legija predstavlja</small></sub><br />
-        Generator UPN QR kod v sili
+  <header>
+    <div class="page-icon w-100">
+      <h1 class="no-margin">
+        <sub><small>Železna legija predstavlja</small></sub
+        ><br />
       </h1>
+      <h1>Generator UPN QR kod v sili</h1>
     </div>
-
+  </header>
+  <main>
     <div class="manual">
       <p><b>Navodila za uporabo:</b></p>
       <p>
-        Vneseš podatke. Klikneš "ustvari QR kode." Ven dobiš dve QR kodi — eno za slovenske banke, drugo za revolut pa n26 pa take fore. Izi. Stvar ne validira podatkov kaj preveč — je na tebi, da vneseš podatke pravilno.
+        Vneseš podatke. Klikneš "ustvari QR kode." Ven dobiš dve QR kodi — eno za
+        slovenske banke, drugo za revolut pa n26 pa take fore. Izi. Stvar ne validira
+        podatkov kaj preveč — je na tebi, da vneseš podatke pravilno.
       </p>
       <p>
-        <small>Ta stran je zastonj in brez reklam. Bi bila tudi brez fehtatonov, ampak bom ob tej inflaciji čez tri mesce basically na minimalcu. Če uporabljaš pogosto in bi mi radi častil pir, potem lahko to storiš <a href="https://www.paypal.com/paypalme/tamius">tukaj</a>.</small>
+        Stvari z zvezdico so obvezne, ostalo je priporočljivo. Aja, pa šumnikov ni. Evropski standard
+        ne podpira. Slovenski standard dovoljuje, sam QR knjižnica ne zna uporabit.
+      </p>
+      <p>
+        <small
+          >Ta stran je zastonj in brez reklam. Bi bila tudi brez fehtatonov, ampak bom ob
+          tej inflaciji čez tri mesce basically na minimalcu. Če uporabljaš pogosto in bi
+          mi radi častil pir, potem lahko to storiš
+          <a href="https://www.paypal.com/paypalme/tamius">tukaj</a>. Github
+          <a href="github.com/tamius-han/upn-qr" target="_blank">tuki</a>.</small
+        >
       </p>
     </div>
 
     <div class="container">
       <div class="data-form">
         <div class="upn-form">
-          <div class="field" :class="{error: upnErrors.amount}">
-            <div class="label">
-              Znesek v evrih*
-            </div>
+          <h3 class="hmb">Podatki za UPN</h3>
+          <div class="field" :class="{ error: upnErrors.amount }">
+            <div class="label">Znesek v evrih*</div>
             <div class="input">
-              <input v-model="upnData.amount" />
+              <input
+                ref="autofocus"
+                v-model="upnData.amount"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+                autofocus
+              />
             </div>
           </div>
           <div class="field code">
-            <div class="label">
-              Koda namena
-            </div>
+            <div class="label">Koda namena</div>
             <div class="input">
-              <input v-model="upnData.code" />
+              <input
+                v-model="upnData.code"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+              />
             </div>
           </div>
-          <div class="field purpose" :class="{error: upnErrors.purpose}">
-            <div class="label">
-              Namen plačila*
-            </div>
+          <div class="field purpose" :class="{ error: upnErrors.purpose }">
+            <div class="label">Namen plačila*</div>
             <div class="input">
-              <input v-model="upnData.purpose" @change="resetQr()" />
+              <input
+                v-model="upnData.purpose"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+              />
             </div>
           </div>
 
-          <div class="field" :class="{error: upnErrors.recipientIBAN}">
-            <div class="label">
-              IBAN*
-            </div>
+          <div class="field" :class="{ error: upnErrors.recipientIBAN }">
+            <div class="label">IBAN*</div>
             <div class="input">
-              <input v-model="upnData.recipientIBAN" @change="resetQr()" />
+              <input
+                v-model="upnData.recipientIBAN"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+              />
             </div>
           </div>
 
           <div class="field">
-            <div class="label" :class="{error: upnErrors.reference}">
+            <div class="label" :class="{ error: upnErrors.reference }">
               Referenca prejemnika
             </div>
             <div class="input">
-              <input v-model="upnData.reference" @change="resetQr()" />
+              <input
+                v-model="upnData.reference"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+              />
             </div>
           </div>
           <div class="field">
-            <div class="label">
-              Naziv prejemnika
-            </div>
+            <div class="label">Naziv prejemnika*</div>
             <div class="input">
-              <input v-model="upnData.recipientName" @change="resetQr()" />
+              <input
+                v-model="upnData.recipientName"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+              />
             </div>
           </div>
           <div class="field">
-            <div class="label">
-              Ulica in hišna številka
-            </div>
+            <div class="label">Ulica in hišna številka</div>
             <div class="input">
-              <input v-model="upnData.recipientAddress" @change="resetQr()" />
+              <input
+                v-model="upnData.recipientAddress"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+              />
             </div>
           </div>
           <div class="field">
-            <div class="label">
-              Pošta in kraj
-            </div>
+            <div class="label">Pošta in kraj</div>
             <div class="input">
-              <input v-model="upnData.recipientCity" @change="resetQr()" />
+              <input
+                v-model="upnData.recipientCity"
+                @input="resetQr()"
+                @keyup.enter.prevent="createQr()"
+              />
             </div>
           </div>
 
           <div class="action-row">
-            <div class="button" @click="createQr()">
-              Ustvari QR kode
-            </div>
-          </div>
-
-        </div>
-        <div class="saved-form">
-          <div class="save-data">
-            <b>Shrani podatke o prejemniku:</b>
-            <div class="save-input">
-              <div class="input"><input v-model="recipientSaveName" /></div>
-              <div class="button" @click="saveRecipient()">Shrani</div>
-            </div>
-          </div>
-
-          <div class="saved-recipients">
-            <div v-for="recipient of savedRecipients" :key="recipient.savedName" class="recipient">
-              <div class="recipient-data">
-                <div class="saved-name">
-                  {{ recipient.savedName }}
-                </div>
-                <div class="saved-data">
-                  {{ recipient.recipientName }} ({{ recipient.recipientIBAN }})
+            <template v-if="savingRecipient">
+              <div class="field flex-grow-1">
+                <div class="label">Vnesi ime prejemnika:</div>
+                <div class="input">
+                  <input
+                    ref="saveRecipientInput"
+                    v-model="recipientSaveName"
+                    @keyup.enter.prevent="saveRecipient()"
+                    @keyup.esc.prevent="cancelSaveRecipient()"
+                  />
                 </div>
               </div>
-              <div class="button-container">
-                <div class="button" @click="loadRecipient(recipient)">Uporabi</div>
-                <!-- <div class="button" @click="removeRecipient(recipient)">Odstrani</div> -->
+              <div class="save-input flex-grow-0 flex-shrink-0">
+                <div tabindex="0" class="button" @click="saveRecipient()">Shrani</div>
+                <div tabindex="0" class="button" @click="cancelSaveRecipient()">
+                  Prekliči
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <div tabindex="0" class="button" @click="createQr()">Ustvari QR kode</div>
+              <div tabindex="0" class="button" @click="startSaveRecipient()">
+                Shrani prejemnika
+              </div>
+            </template>
+          </div>
+          <div v-if="!savingRecipient" class="field">
+            <div class="label">
+              <input type="checkbox" v-model="noBorder" style="width: initial" /> Brez
+              obrobe okrog QR kod
+            </div>
+            <small
+              ><b
+                >Okrog QR kode mora biti za približno dva kvadratka praznega prostora,
+                drugače se ne bo skenirala.</b
+              >
+              Možnost brez obrobe uporabi samo, če nameravaš obrobo okrog QR kode dodati
+              kasneje.</small
+            >
+          </div>
+        </div>
+
+        <div class="saved-form">
+          <div class="heading">
+            <h3 class="hmb">Shranjeni prejemniki</h3>
+          </div>
+          <div class="saved-recipients">
+            <div class="scroller">
+              <div
+                v-for="(recipient, index) of savedRecipients"
+                :key="recipient.savedName"
+                class="recipient"
+                tabindex="0"
+                @click="loadRecipient(recipient)"
+              >
+                <div class="recipient-data">
+                  <div class="saved-name">
+                    {{ recipient.savedName }}
+                  </div>
+                  <div class="saved-data">
+                    {{ recipient.recipientName }}
+                    <br />
+                    <small>{{ recipient.recipientIBAN }}</small>
+                  </div>
+                </div>
+                <div class="button-container">
+                  <div class="button slim" @click="loadRecipient(recipient)">Uporabi</div>
+                  <div
+                    tabindex="0"
+                    class="button slim warn"
+                    @click="removeRecipient(index)"
+                  >
+                    Odstrani
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <h1 class="qr-area-heading">QR kode:</h1>
 
       <div class="qr-area">
         <div class="qr-panel">
           <h2>Tuje banke</h2>
           <div>Revolut, N26, itd.</div>
-          <div class="qr-code" v-html="bcdQrHtml">
-          </div>
-          <div>
-            <b>IBAN:</b> {{ upnData.recipientIBAN}}<br/>
-            <b>Naziv prejemnika:</b> {{ upnData.recipientName }}
-            <div class="button" @click="saveSvg(bcdQrHtml, upnData.amount + '-EU-QR-' + upnData.recipientName + '.svg')">Shrani SVG</div>
+          <div class="qr-code" v-html="bcdQrHtml"></div>
+          <div
+            class="button"
+            @click="
+              saveSvg(
+                bcdQrHtml,
+                upnData.amount + '-EU-QR-' + upnData.recipientName + '.svg'
+              )
+            "
+          >
+            Shrani SVG
           </div>
         </div>
         <div class="qr-panel">
           <h2>Slovenske banke</h2>
           <div>N26, SKB, gor*njska banka, itd.</div>
-          <div class="qr-code" v-html="upnQrHtml">
+          <div class="qr-code" v-html="upnQrHtml"></div>
+          <div
+            class="button"
+            @click="
+              saveSvg(
+                upnQrHtml,
+                upnData.amount + '-SLO-QR-' + upnData.recipientName + '.svg'
+              )
+            "
+          >
+            Shrani SVG
           </div>
-          <b>IBAN:</b> {{ upnData.recipientIBAN}}<br/>
-          <b>Naziv prejemnika:</b> {{ upnData.recipientName }}
-          <template v-if="upnData.recipientAddress">
-            <b>Naslov:</b> {{  upnData.recipientAddress }}, {{ upnData.recipientCity }}
-          </template>
-          <div class="button" @click="saveSvg(upnQrHtml, upnData.amount + '-SLO-QR-' + upnData.recipientName + '.svg')">Shrani SVG</div>
         </div>
       </div>
-
-  </div>
-
+      <div class="qr-area">
+        <div class="qr-panel" style="margin-top: 2rem">
+          <h3>Podatki o prejemniku <small>za enostavno kopiranje</small></h3>
+          <b>IBAN:</b> {{ upnData.recipientIBAN }}<br />
+          <b>Naziv prejemnika:</b> {{ upnData.recipientName }}
+          <template v-if="upnData.recipientAddress">
+            <b>Naslov:</b> {{ upnData.recipientAddress }}, {{ upnData.recipientCity }}
+          </template>
+        </div>
+      </div>
+    </div>
   </main>
+  <footer>
+    <a href="http://tamius.net" target="_blank">tamius.net</a> —
+    <a href="http://stuff.tamius.net/sacred-texts" target="_blank">moj blog in jamranja</a
+    >, <a href="https://github.com/tamius-han" target="_blank">moj github</a>,
+    <a href="https://www.instagram.com/tamius_han/">moj insta</a>.
+  </footer>
 </template>
 
 <style scoped>
 header {
   line-height: 1.5;
+}
+
+h3.hmb {
+  margin-bottom: 1.5rem;
 }
 
 .logo {
@@ -469,10 +636,16 @@ header {
   margin-top: 1.5rem;
   justify-content: center;
   width: 100%;
-  margin-bottom: 3rem;
+  padding-right: 0.5rem;
 }
 .action-row .button {
   margin: 0.5rem;
+}
+
+.qr-area-heading {
+  margin-top: 3rem;
+  margin-bottom: 1.5rem;
+  margin-left: 1rem;
 }
 
 .data-form {
@@ -491,6 +664,13 @@ header {
   min-width: 375px;
   flex-grow: 1;
   flex-shrink: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.saved-form .heading {
+  padding-left: 0.5rem;
 }
 
 .qr-area {
@@ -513,6 +693,7 @@ header {
   display: flex;
   justify-content: center;
   align-items: center;
+  margin: 1rem;
 }
 
 .upn-form {
@@ -528,7 +709,7 @@ header {
 }
 .field.error input {
   background-color: rgba(248, 158, 120, 0.449);
-  border-color: rgba(248, 158, 120,1);
+  border-color: rgba(248, 158, 120, 1);
 }
 
 .upn-form .field input {
@@ -573,6 +754,30 @@ header {
   flex-shrink: 0;
 }
 
+.save-data {
+  margin-bottom: 1rem;
+}
+
+.saved-recipients {
+  flex-grow: 1;
+  flex-shrink: 1;
+
+  position: relative;
+}
+
+.saved-recipients .scroller {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.saved-recipients .recipient:hover,
+.saved-recipients .recipient:focus {
+  background-color: rgba(255, 171, 102, 0.25);
+  cursor: pointer;
+}
+
 .saved-recipients .recipient {
   border-top: 1px dotted #fa6;
   display: flex;
@@ -595,16 +800,24 @@ header {
   font-size: 1.1em;
 }
 
-.saved-recipients .recipient .button-container {
+.recipient .button-container {
   flex-grow: 0;
   flex-shrink: 0;
   height: fit-content;
+  display: flex;
+  flex-direction: column;
 }
-.saved-recipients .recipient .button-container .button {
+.recipient .button-container .button {
   background-color: transparent;
   border: none;
   text-decoration: underline;
   color: #fa6;
+}
+.recipient .button-container .button:hover {
+  background-color: rgba(255, 171, 102, 0.125);
+}
+.recipient .button-container .button.warn:hover {
+  background-color: rgb(171, 36, 18);
 }
 
 small {
@@ -627,5 +840,14 @@ small {
     place-items: flex-start;
     flex-wrap: wrap;
   }
+}
+
+footer {
+  border-top: 1px dotted #fa6;
+  margin-top: 5rem;
+  padding-bottom: 2.5rem;
+  text-align: center;
+  opacity: 0.75;
+  font-size: 0.8rem;
 }
 </style>
