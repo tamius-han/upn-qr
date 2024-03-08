@@ -392,8 +392,7 @@ onMounted(
         podatkov kaj preveč — je na tebi, da vneseš podatke pravilno.
       </p>
       <p>
-        Stvari z zvezdico so obvezne, ostalo je priporočljivo. Aja, pa šumnikov ni. Evropski standard
-        ne podpira. Slovenski standard dovoljuje, sam QR knjižnica ne zna uporabit.
+        Stvari z zvezdico so obvezne, ostalo je priporočljivo. Aja, pa šumniki so odstranjeni iz QR kod za tuje banke, ker tuje banke tega bolj ne podpirajo.
       </p>
       <p>
         <small

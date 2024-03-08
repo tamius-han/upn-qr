@@ -14,9 +14,13 @@ Stran ustvari dve kodi: eno za evropske banke (Revolut, N26), ter eno za Slovens
 
 Tiste QR kode, ki jih rabiš, nato shraniš na računalnik in sprintaš na en (ali več) list(ov) papirja.
 
+Spletna stran dovoljuje tudi, da:
+
+* shraniš prejemnike, da ti ni treba vsakič na novo podatkov vnašat iz nule. (Podatki so shranjeni lokalno, če menjaš brskalnik podatki ne bodo šli s tabo)
+* UPN obrazec se doda v query string od URLja, če rabiš prenesti obrazce med brskalniki ali računali
+
 ## Stvari, ki ne delajo
 
-* Zgleda, da knjižnica za QR kode ne mara šumnikov. 
 * Poleg 'posebna snežinka' formata QR kod imamo tudi 'posebna snežinka' format za reference. Slovenskih referenc ne validiram, ampak to verjetno ni kak problem. Ljudje, ki jim RF00 (prost vnos) in RF99 (prazna referenca) nista dovolj, verjetno uporabljajo proper računovodske programe. To ne bo nikoli delalo, ker se mi validacije referenc ne ljubi implementirat. 
 * Ene par manjših hroščkov in nezglajenih kotov, ki niso dovolj nadležni da bi upravičevali čas, ki bi bil potreben, da se spucajo.
 
