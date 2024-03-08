@@ -353,8 +353,10 @@ function autofocusInput() {
 }
 
 function updateQueryString() {
-  const searchParams = new URLSearchParams(upnData.value);
-  window.history.replaceState(null, null as any as string, searchParams.toString());
+  const upnDataCopy = JSON.parse(JSON.stringify(upnData.value));
+  delete upnDataCopy.savedName;
+  const searchParams = new URLSearchParams(upnDataCopy);
+  window.history.replaceState(null, null as any as string, `?${searchParams.toString()}`);
 }
 
 onMounted(
