@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
-import * as ibantools from "ibantools";
-import unidecode from "unidecode";
-import qrcode from "qrcode-generator";
+import { nextTick, onMounted, ref }           from "vue";
+import * as ibantools                         from "ibantools";
+import unidecode                              from "unidecode";
+import {encode as encodeISO}                  from 'iso-8859-2';
+import qrcode                                 from "qrcode-generator";
 // import QRCode from 'qrcode-svg';
-import ISO11649 from "iso-11649";
+import ISO11649                               from "iso-11649";
 
 const LOCALSTORAGE_RECIPIENTS_KEY = "recipients";
 
@@ -45,6 +46,11 @@ const storedRecipientJSONString = localStorage.getItem(LOCALSTORAGE_RECIPIENTS_K
 if (storedRecipientJSONString) {
   savedRecipients.value = JSON.parse(storedRecipientJSONString);
 }
+
+function encodeUpnString(string: string) {
+  return  String.fromCharCode(...encodeISO(string))
+}
+
 
 function clearErrors() {
   return {
@@ -173,6 +179,7 @@ function generateUpnQrText() {
 
   // spec for UPN and UPN QR:
   // https://www.upn-qr.si/uploads/files/Tehnicni%20standard%20UPN%20QR.pdf
+  // encodeUpnString encodes UPN characters in ISO/IE 8859-2 standard used by our banks.
   const template = `UPNQR
 
 
@@ -185,13 +192,13 @@ ${amount}
 
 
 ${purposeCode}
-${unidecode(upnData.value.purpose)}
+${encodeUpnString(upnData.value.purpose)}
 
 ${iban}
 ${reference}
-${unidecode(upnData.value.recipientName)}
-${unidecode(upnData.value.recipientAddress)}
-${unidecode(upnData.value.recipientCity)}`;
+${encodeUpnString(upnData.value.recipientName)}
+${encodeUpnString(upnData.value.recipientAddress)}
+${encodeUpnString(upnData.value.recipientCity)}`;
 
   return `${template}\n${template.length}`;
 }
@@ -203,6 +210,7 @@ function generateBcdQrText() {
   upnErrors.value = clearErrors();
   const { iban, amountBcd } = processUpnQrData();
 
+  // remove non-ASCII characters, as foreign banks don't support them
   const name = unidecode(upnData.value.recipientName);
   const purpose = unidecode(upnData.value.purpose);
 
@@ -264,6 +272,8 @@ function createQr() {
     upnQrHtml.value = generateQr(upnQrText);
     // (eu as any).value.innerHtml = generateQr(bcdQrText);
     // (slo as any).value.innerHtml = generateQr(upnQrText);
+
+    updateQueryString();
   } catch (e) {
     console.warn("we had a fucky wucky");
     console.error(e);
@@ -323,6 +333,7 @@ function cancelSaveRecipient() {
 function loadRecipient(recipient: any) {
   upnData.value = { ...recipient, savedName: undefined };
   autofocusInput();
+  updateQueryString();
 }
 
 /**
@@ -341,9 +352,23 @@ function autofocusInput() {
   (autofocus.value as any)?.focus();
 }
 
-function onMounted() {
-  nextTick(() => autofocusInput());
+function updateQueryString() {
+  const searchParams = new URLSearchParams(upnData.value);
+  window.history.replaceState(null, null as any as string, searchParams.toString());
 }
+
+onMounted(
+  () => {
+    const searchParams = new URLSearchParams(window.location.search);
+    for (const key in upnData.value) {
+      if (searchParams.has(key)) {
+        (upnData.value as any)[key] = searchParams.get(key);
+      }
+    }
+
+    nextTick(() => autofocusInput());
+  }
+);
 </script>
 
 <template>
