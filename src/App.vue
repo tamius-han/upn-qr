@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref }           from "vue";
-import * as ibantools                         from "ibantools";
-import unidecode                              from "unidecode";
-import {encode as encodeISO}                  from 'iso-8859-2';
-import qrcode                                 from "qrcode-generator";
+import { nextTick, onMounted, ref }               from "vue";
+import * as ibantools                             from "ibantools";
+import unidecode                                  from "unidecode";
+import {encode as encodeISO}                      from 'iso-8859-2';
+import qrcode                                     from "qrcode-generator";
 // import QRCode from 'qrcode-svg';
-import ISO11649                               from "iso-11649";
+import ISO11649                                   from "iso-11649";
+
+import { qr2Svg }                                 from './lib/qr-2-svg';
+
+// test
 
 const LOCALSTORAGE_RECIPIENTS_KEY = "recipients";
 
@@ -32,7 +36,10 @@ const upnErrors = ref({
 });
 
 const upnQrHtml = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
+const upnQrHtml2 = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
 const bcdQrHtml = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
+const upnSrcAlt = ref("");
+const upnSrcAlt2 = ref("");
 const savingRecipient = ref(false);
 const noBorder = ref(false);
 const recipientSaveName = ref("");
@@ -48,7 +55,8 @@ if (storedRecipientJSONString) {
 }
 
 function encodeUpnString(string: string) {
-  return  String.fromCharCode(...encodeISO(string))
+  // return  String.fromCharCode(...encodeISO(string))
+  return string;
 }
 
 
@@ -200,7 +208,41 @@ ${encodeUpnString(upnData.value.recipientName)}
 ${encodeUpnString(upnData.value.recipientAddress)}
 ${encodeUpnString(upnData.value.recipientCity)}`;
 
-  return `${template}\n${template.length}`;
+  // the \n before checksum should also be included in the checksum, but it
+  // isn't. That's why we're adding 1 here.
+  return `${template}\n${String(template.length + 1).padStart(3, '0')}`;
+}
+
+function generateUpnQrText2() {
+  upnErrors.value = clearErrors();
+  const { iban, amount, reference, purposeCode } = processUpnQrData();
+
+  // spec for UPN and UPN QR:
+  // https://www.upn-qr.si/uploads/files/Tehnicni%20standard%20UPN%20QR.pdf
+  // encodeUpnString encodes UPN characters in ISO/IE 8859-2 standard used by our banks.
+  const template = `UPNQR
+
+
+
+
+
+
+
+${amount}
+
+
+${purposeCode}
+${upnData.value.purpose}
+
+${iban}
+${reference}
+${upnData.value.recipientName}
+${upnData.value.recipientAddress}
+${upnData.value.recipientCity}`;
+
+  // the \n before checksum should also be included in the checksum, but it
+  // isn't. That's why we're adding 1 here.
+  return `${template}\n${String(template.length + 1).padStart(3, '0')}`;
 }
 
 /**
@@ -230,26 +272,18 @@ ${purpose}
   return template;
 }
 
-function generateQr(data: string, type: "svg" | "image" = "svg") {
+function generateQr(data: string, normalize: boolean = true) {
   console.log("Generating qr code from:", data);
-  const qr = qrcode(0, 'H');
-  // const qr = new QRCode({
-  //   content: data,
-  //   ecl: "H",
-  //   padding: noBorder.value ? 0 : 2,
-  //   join: true,
-  //   container: "svg-viewbox",
-  // });
-  // return qr.svg();
-
-  qr.addData(data.normalize('NFD'));
-  qr.make();
-
-  if (type === 'svg') {
-    return qr.createSvgTag({scalable: true, margin: (noBorder.value ? 0 : undefined)});
-  } else {
-    return qr.createImgTag();
+  try {
+    return qr2Svg(normalize ? data.normalize('NFD') : data);
+  } catch (e) {
+    console.error('Failed to generate qr');
+    console.error(e);
   }
+}
+
+function generateQrAlt(data: string) {
+  ;
 }
 
 /**
@@ -267,9 +301,15 @@ function createQr() {
   try {
     const upnQrText = generateUpnQrText();
     const bcdQrText = generateBcdQrText();
+    // const upnQrTextUTF = generateUpnQrText2();
 
     bcdQrHtml.value = generateQr(bcdQrText);
-    upnQrHtml.value = generateQr(upnQrText);
+    upnQrHtml.value = generateQr(upnQrText, false);
+    // upnQrHtml2.value = generateQr(upnQrTextUTF);
+
+    upnSrcAlt.value = generateQrAlt(upnQrText);
+    // upnSrcAlt2.value = generateQrAlt(upnQrTextUTF).toDataURL();
+
     // (eu as any).value.innerHtml = generateQr(bcdQrText);
     // (slo as any).value.innerHtml = generateQr(upnQrText);
 
@@ -580,7 +620,7 @@ onMounted(
 
       <h1 class="qr-area-heading">QR kode:</h1>
 
-      <div class="qr-area">
+      <div class="qr-area" style="width: 200%">
         <div class="qr-panel">
           <h2>Tuje banke</h2>
           <div>Revolut, N26, itd.</div>
@@ -613,6 +653,27 @@ onMounted(
             Shrani SVG
           </div>
         </div>
+           <div class="qr-panel">
+          <h2>Slovenske banke - UTF</h2>
+          <div>N26, SKB, gor*njska banka, itd.</div>
+          <div class="qr-code" v-html="upnQrHtml2"></div>
+          <div
+            class="button"
+            @click="
+              saveSvg(
+                upnQrHtml,
+                upnData.amount + '-SLO-QR-' + upnData.recipientName + '.svg'
+              )
+            "
+          >
+            Shrani SVG
+          </div>
+        </div>
+      </div>
+      <div class="qr-area" style="width: 200%; margin-top: 20rem">
+        <div class="qr-code" v-html="upnSrcAlt"></div>
+
+        <img :src="upnSrcAlt2">
       </div>
       <div class="qr-area">
         <div class="qr-panel" style="margin-top: 2rem">

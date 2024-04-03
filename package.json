@@ -10,6 +10,7 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@nuintun/qrcode": "^3.4.0",
     "ibantools": "^4.2.2",
     "iso-11649": "^1.0.1",
     "iso-8859-2": "^3.0.4",
