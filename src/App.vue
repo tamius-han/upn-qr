@@ -2,9 +2,7 @@
 import { nextTick, onMounted, ref }               from "vue";
 import * as ibantools                             from "ibantools";
 import unidecode                                  from "unidecode";
-import {encode as encodeISO}                      from 'iso-8859-2';
 import qrcode                                     from "qrcode-generator";
-// import QRCode from 'qrcode-svg';
 import ISO11649                                   from "iso-11649";
 
 import { qr2Svg }                                 from './lib/qr-2-svg';
@@ -55,7 +53,6 @@ if (storedRecipientJSONString) {
 }
 
 function encodeUpnString(string: string) {
-  // return  String.fromCharCode(...encodeISO(string))
   return string;
 }
 
@@ -272,7 +269,7 @@ ${purpose}
   return template;
 }
 
-function generateQr(data: string, normalize: boolean = true) {
+function generateQr(data: string, normalize: boolean = false) {
   console.log("Generating qr code from:", data);
   try {
     return qr2Svg(normalize ? data.normalize('NFD') : data);
@@ -282,9 +279,6 @@ function generateQr(data: string, normalize: boolean = true) {
   }
 }
 
-function generateQrAlt(data: string) {
-  ;
-}
 
 /**
  * Clears currently generated QR code
@@ -305,10 +299,6 @@ function createQr() {
 
     bcdQrHtml.value = generateQr(bcdQrText);
     upnQrHtml.value = generateQr(upnQrText, false);
-    // upnQrHtml2.value = generateQr(upnQrTextUTF);
-
-    upnSrcAlt.value = generateQrAlt(upnQrText);
-    // upnSrcAlt2.value = generateQrAlt(upnQrTextUTF).toDataURL();
 
     // (eu as any).value.innerHtml = generateQr(bcdQrText);
     // (slo as any).value.innerHtml = generateQr(upnQrText);
