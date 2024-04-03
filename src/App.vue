@@ -2,9 +2,7 @@
 import { nextTick, onMounted, ref }               from "vue";
 import * as ibantools                             from "ibantools";
 import unidecode                                  from "unidecode";
-import qrcode                                     from "qrcode-generator";
 import ISO11649                                   from "iso-11649";
-
 import { qr2Svg }                                 from './lib/qr-2-svg';
 
 // test
@@ -36,8 +34,6 @@ const upnErrors = ref({
 const upnQrHtml = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
 const upnQrHtml2 = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
 const bcdQrHtml = ref("Izpolni podatke in klikni gumb 'Ustvari QR kode'");
-const upnSrcAlt = ref("");
-const upnSrcAlt2 = ref("");
 const savingRecipient = ref(false);
 const noBorder = ref(false);
 const recipientSaveName = ref("");
@@ -659,11 +655,6 @@ onMounted(
             Shrani SVG
           </div>
         </div>
-      </div>
-      <div class="qr-area" style="width: 200%; margin-top: 20rem">
-        <div class="qr-code" v-html="upnSrcAlt"></div>
-
-        <img :src="upnSrcAlt2">
       </div>
       <div class="qr-area">
         <div class="qr-panel" style="margin-top: 2rem">
